@@ -118,4 +118,14 @@ async def socket_loop():
 @app.on_event("startup")
 async def startup():
 
-    asyncio.create_task(socket_loop())
+    asyncio.create_task(socket_loop_with_retry())
+
+async def socket_loop_with_retry():
+
+    while True:
+
+        try:
+            await socket_loop()
+        except Exception as e:
+            print(f"Socket error: {e}. Retrying in 30 seconds...")
+            await asyncio.sleep(30)
