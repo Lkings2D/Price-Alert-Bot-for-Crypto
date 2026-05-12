@@ -12,6 +12,8 @@ API_KEY = os.getenv("API_KEY")
 
 alerts = {}
 
+# ---------------- FASTAPI ---------------- #
+
 app = FastAPI()
 
 # ---------------- SECURITY ---------------- #
@@ -29,7 +31,7 @@ def send_alert(msg):
     except Exception as e:
         print("DISCORD ERROR:", e)
 
-# ---------------- PRICE LOOP ---------------- #
+# ---------------- PRICE LOOP (FIXED) ---------------- #
 
 def price_loop():
     print("🔥 PRICE LOOP STARTED")
@@ -38,25 +40,31 @@ def price_loop():
 
     while True:
         try:
-            res = requests.get(url, timeout=10).json()
+            response = requests.get(url, timeout=10)
 
-            # Binance safety fallback
-            if isinstance(res, dict):
-                res = [res]
+            # SAFE JSON PARSE
+            try:
+                res = response.json()
+            except:
+                print("BAD JSON RESPONSE:", response.text)
+                time.sleep(5)
+                continue
 
+            # MUST BE LIST
             if not isinstance(res, list):
+                print("BAD RESPONSE TYPE:", type(res))
                 time.sleep(5)
                 continue
 
             for item in res:
-                # 🔥 FIX: prevent string crash
-                if not isinstance(item, dict):
+                # STRICT TYPE CHECK (FIXES YOUR ERROR)
+                if type(item) is not dict:
                     continue
 
                 symbol = item.get("symbol")
                 price = item.get("price")
 
-                if symbol is None or price is None:
+                if not symbol or not price:
                     continue
 
                 try:
@@ -67,13 +75,10 @@ def price_loop():
                 # ALERT CHECK
                 if symbol in alerts:
                     for target in alerts[symbol][:]:
-                        try:
-                            if price >= target:
-                                print("🔔 TRIGGER", symbol, price)
-                                send_alert(f"🔔 {symbol} hit {price}")
-                                alerts[symbol].remove(target)
-                        except:
-                            continue
+                        if price >= target:
+                            print("🔔 TRIGGER", symbol, price)
+                            send_alert(f"🔔 {symbol} hit {price}")
+                            alerts[symbol].remove(target)
 
             time.sleep(2)
 
