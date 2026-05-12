@@ -1,38 +1,121 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Form, Request
+from fastapi.responses import HTMLResponse
+from fastapi.templating import Jinja2Templates
+
+import asyncio
+import websockets
+import json
+import requests
+import os
 
 app = FastAPI()
 
-alerts = {}
+templates = Jinja2Templates(directory="templates")
 
-@app.get("/")
-def root():
-    return {"status": "alive"}
+alerts = []
 
-@app.get("/health")
-def health():
-    return {"status": "ok"}
+WEBHOOK = os.getenv("DISCORD_WEBHOOK")
+PASSWORD = os.getenv("DASH_PASSWORD")
 
-@app.get("/alerts")
-def get_alerts():
-    return alerts
+# LOGIN + DASHBOARD
+@app.get("/", response_class=HTMLResponse)
+async def home(request: Request, password: str = ""):
 
+    if password != PASSWORD:
 
+        return HTMLResponse("""
+
+        <html>
+
+        <body style="font-family:sans-serif;padding:40px;">
+
+            <h1>BTC Alert Login</h1>
+
+            <form>
+
+                <input
+                    type="password"
+                    name="password"
+                    placeholder="Password"
+                >
+
+                <button type="submit">
+                    Enter
+                </button>
+
+            </form>
+
+        </body>
+
+        </html>
+
+        """)
+
+    return templates.TemplateResponse(
+        "index.html",
+        {
+            "request": request,
+            "alerts": alerts,
+            "password": password
+        }
+    )
+
+# ADD ALERT
 @app.post("/add")
-def add_alert(data: dict):
-    coin = data["coin"].upper()
-    price = float(data["price"])
+async def add_alert(
+    request: Request,
+    password: str = Form(...),
+    price: float = Form(...)
+):
 
-    alerts.setdefault(coin, []).append(price)
+    if password != PASSWORD:
+        return {"error": "wrong password"}
 
-    return {"status": "added", "alerts": alerts}
+    alerts.append(price)
 
+    return HTMLResponse(f"""
 
-@app.post("/remove")
-def remove_alert(data: dict):
-    coin = data["coin"].upper()
-    price = float(data["price"])
+    <script>
+        window.location.href='/?password={password}'
+    </script>
 
-    if coin in alerts and price in alerts[coin]:
-        alerts[coin].remove(price)
+    """)
 
-    return {"status": "removed", "alerts": alerts}
+# REALTIME BINANCE SOCKET
+async def socket_loop():
+
+    uri = "wss://stream.binance.com:9443/ws/btcusdt@trade"
+
+    async with websockets.connect(uri) as ws:
+
+        while True:
+
+            data = json.loads(await ws.recv())
+
+            current = float(data["p"])
+
+            print(current)
+
+            triggered = []
+
+            for target in alerts:
+
+                if current >= target:
+
+                    requests.post(
+                        WEBHOOK,
+                        json={
+                            "content": f"🚨 BTC hit ${target}"
+                        }
+                    )
+
+                    triggered.append(target)
+
+            for t in triggered:
+                alerts.remove(t)
+
+# START SOCKET
+@app.on_event("startup")
+async def startup():
+
+    asyncio.create_task(socket_loop())
