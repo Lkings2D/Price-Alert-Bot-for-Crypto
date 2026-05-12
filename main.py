@@ -3,12 +3,13 @@ import threading
 import requests
 import time
 from fastapi import FastAPI, Header, HTTPException
-from contextlib import asynccontextmanager
 
 # ---------------- ENV ---------------- #
 
 DISCORD_WEBHOOK = os.getenv("DISCORD_WEBHOOK")
 API_KEY = os.getenv("API_KEY")
+
+PORT = int(os.environ.get("PORT", 8080))
 
 # ---------------- STATE ---------------- #
 
@@ -67,7 +68,7 @@ def price_loop():
 
                 price = float(price)
 
-                # 🔥 DEBUG (remove later if you want)
+                # debug only LINKUSDT
                 if symbol == "LINKUSDT":
                     print("FOUND LINK:", price)
 
@@ -75,10 +76,9 @@ def price_loop():
                     for target in alerts[symbol][:]:
                         print("CHECK", symbol, price, target)
 
-                        # 🔥 RELIABLE TRIGGER (no missed spikes)
                         if price >= target:
                             print("🔔 TRIGGER", symbol, price)
-                            send_alert(f"{symbol} hit {price}")
+                            send_alert(f"🔔 {symbol} hit {price}")
                             alerts[symbol].remove(target)
 
             time.sleep(2)
@@ -87,21 +87,18 @@ def price_loop():
             print("❌ LOOP ERROR:", e)
             time.sleep(5)
 
-# ---------------- STARTUP ---------------- #
+# ---------------- FASTAPI ---------------- #
 
-def start_loop():
-    price_loop()
+app = FastAPI()
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
+@app.on_event("startup")
+def startup():
     print("🚀 FASTAPI STARTUP")
-    thread = threading.Thread(target=start_loop, daemon=True)
+
+    thread = threading.Thread(target=price_loop, daemon=True)
     thread.start()
-    yield
 
-app = FastAPI(lifespan=lifespan)
-
-# ---------------- API ---------------- #
+# ---------------- ROUTES ---------------- #
 
 @app.get("/alerts")
 def get_alerts():
@@ -138,3 +135,9 @@ def remove_alert(data: dict, x_api_key: str = Header(None)):
     print(f"➖ REMOVED ALERT {coin} @ {price}")
 
     return {"status": "removed", "alerts": alerts}
+
+# ---------------- RAILWAY ENTRYPOINT ---------------- #
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=PORT)
