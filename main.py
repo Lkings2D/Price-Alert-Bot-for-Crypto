@@ -12,10 +12,6 @@ API_KEY = os.getenv("API_KEY")
 
 alerts = {}
 
-# ---------------- FASTAPI ---------------- #
-
-app = FastAPI()
-
 # ---------------- SECURITY ---------------- #
 
 def verify_key(x_api_key: str):
@@ -35,7 +31,6 @@ def send_alert(msg):
 
 def price_loop():
     print("🔥 PRICE LOOP STARTED")
-    print(symbol, price)
 
     url = "https://api.binance.com/api/v3/ticker/price"
 
@@ -43,15 +38,13 @@ def price_loop():
         try:
             response = requests.get(url, timeout=10)
 
-            # SAFE JSON PARSE
             try:
                 res = response.json()
-            except Exception as e:
+            except:
                 print("BAD JSON:", response.text)
                 time.sleep(5)
                 continue
 
-            # 🔥 FIX: normalize Binance response
             if isinstance(res, dict):
                 res = [res]
 
@@ -61,7 +54,6 @@ def price_loop():
                 continue
 
             for item in res:
-                # strict safety
                 if not isinstance(item, dict):
                     continue
 
@@ -76,7 +68,6 @@ def price_loop():
                 except:
                     continue
 
-                # ALERT LOGIC
                 if symbol in alerts:
                     for target in alerts[symbol][:]:
                         if price >= target:
@@ -90,23 +81,20 @@ def price_loop():
             print("LOOP ERROR:", e)
             time.sleep(5)
 
-# ---------------- STARTUP (RAILWAY SAFE) ---------------- #
-
-def start_loop():
-    price_loop()
+# ---------------- FASTAPI (ONLY ONCE) ---------------- #
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     print("🚀 FASTAPI STARTED")
 
-    thread = threading.Thread(target=start_loop, daemon=True)
+    thread = threading.Thread(target=price_loop, daemon=True)
     thread.start()
 
     yield
 
 app = FastAPI(lifespan=lifespan)
 
-# ---------------- HEALTH CHECK ---------------- #
+# ---------------- HEALTH ---------------- #
 
 @app.get("/")
 def root():
