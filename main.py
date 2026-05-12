@@ -20,23 +20,22 @@ def verify_key(x_api_key: str):
     if x_api_key != API_KEY:
         raise HTTPException(status_code=401, detail="Unauthorized")
 
-# ---------------- PRICE ENGINE ---------------- #
+# ---------------- DISCORD ---------------- #
 
 def send_alert(msg):
     if DISCORD_WEBHOOK:
         requests.post(DISCORD_WEBHOOK, json={"content": msg})
 
+# ---------------- PRICE LOOP ---------------- #
 
 def price_loop():
+    print("🔥 PRICE LOOP STARTED")
+
     url = "https://api.binance.com/api/v3/ticker/price"
 
     while True:
         try:
             res = requests.get(url, timeout=10).json()
-
-            # ensure it's a list
-            if isinstance(res, dict):
-                res = [res]
 
             for item in res:
                 symbol = item.get("symbol")
@@ -49,24 +48,27 @@ def price_loop():
 
                 if symbol in alerts and alerts[symbol]:
                     for target in alerts[symbol][:]:
+                        print(f"CHECK {symbol} {price} vs {target}")
+
                         if price >= target:
+                            print(f"🔔 TRIGGERED {symbol} {price}")
                             send_alert(f"🔔 {symbol} hit {price}")
                             alerts[symbol].remove(target)
 
             time.sleep(2)
 
         except Exception as e:
-            print("Price loop error:", e)
+            print("❌ LOOP ERROR:", e)
             time.sleep(5)
 
+# ---------------- STARTUP ---------------- #
 
 def start_loop():
     price_loop()
 
-# ---------------- FASTAPI LIFESPAN ---------------- #
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    print("🚀 FASTAPI STARTUP")
     thread = threading.Thread(target=start_loop, daemon=True)
     thread.start()
     yield
@@ -91,6 +93,9 @@ def add_alert(data: dict, x_api_key: str = Header(None)):
         alerts[coin] = []
 
     alerts[coin].append(price)
+
+    print(f"➕ ADDED ALERT {coin} @ {price}")
+
     return {"status": "added", "alerts": alerts}
 
 
@@ -103,5 +108,7 @@ def remove_alert(data: dict, x_api_key: str = Header(None)):
 
     if coin in alerts and price in alerts[coin]:
         alerts[coin].remove(price)
+
+    print(f"➖ REMOVED ALERT {coin} @ {price}")
 
     return {"status": "removed", "alerts": alerts}
