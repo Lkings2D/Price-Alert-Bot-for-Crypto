@@ -31,7 +31,7 @@ def send_alert(msg):
     except Exception as e:
         print("DISCORD ERROR:", e)
 
-# ---------------- PRICE LOOP (FIXED) ---------------- #
+# ---------------- PRICE LOOP ---------------- #
 
 def price_loop():
     print("🔥 PRICE LOOP STARTED")
@@ -45,20 +45,23 @@ def price_loop():
             # SAFE JSON PARSE
             try:
                 res = response.json()
-            except:
-                print("BAD JSON RESPONSE:", response.text)
+            except Exception as e:
+                print("BAD JSON:", response.text)
                 time.sleep(5)
                 continue
 
-            # MUST BE LIST
+            # 🔥 FIX: normalize Binance response
+            if isinstance(res, dict):
+                res = [res]
+
             if not isinstance(res, list):
                 print("BAD RESPONSE TYPE:", type(res))
                 time.sleep(5)
                 continue
 
             for item in res:
-                # STRICT TYPE CHECK (FIXES YOUR ERROR)
-                if type(item) is not dict:
+                # strict safety
+                if not isinstance(item, dict):
                     continue
 
                 symbol = item.get("symbol")
@@ -72,7 +75,7 @@ def price_loop():
                 except:
                     continue
 
-                # ALERT CHECK
+                # ALERT LOGIC
                 if symbol in alerts:
                     for target in alerts[symbol][:]:
                         if price >= target:
