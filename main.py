@@ -87,18 +87,18 @@ def price_loop():
             print("❌ LOOP ERROR:", e)
             time.sleep(5)
 
+# ---------------- START BACKGROUND LOOP ---------------- #
+
+def start_loop():
+    price_loop()
+
+# 🔥 IMPORTANT: start thread at module level (NOT startup event)
+thread = threading.Thread(target=start_loop, daemon=True)
+thread.start()
+
 # ---------------- FASTAPI ---------------- #
 
 app = FastAPI()
-
-@app.on_event("startup")
-def startup():
-    print("🚀 FASTAPI STARTUP")
-
-    thread = threading.Thread(target=price_loop, daemon=True)
-    thread.start()
-
-# ---------------- ROUTES ---------------- #
 
 @app.get("/alerts")
 def get_alerts():
@@ -136,7 +136,7 @@ def remove_alert(data: dict, x_api_key: str = Header(None)):
 
     return {"status": "removed", "alerts": alerts}
 
-# ---------------- RAILWAY ENTRYPOINT ---------------- #
+# ---------------- RAILWAY ENTRY ---------------- #
 
 if __name__ == "__main__":
     import uvicorn
