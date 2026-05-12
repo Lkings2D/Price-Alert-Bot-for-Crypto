@@ -1,4 +1,5 @@
 import os
+import threading
 import requests
 import time
 from fastapi import FastAPI, Header, HTTPException
@@ -10,22 +11,7 @@ alerts = {}
 
 app = FastAPI()
 
-# ---------------- SECURITY ---------------- #
-
-def verify_key(x_api_key: str):
-    if x_api_key != API_KEY:
-        raise HTTPException(status_code=401, detail="Unauthorized")
-
-# ---------------- DISCORD ---------------- #
-
-def send_alert(msg):
-    try:
-        if DISCORD_WEBHOOK:
-            requests.post(DISCORD_WEBHOOK, json={"content": msg}, timeout=5)
-    except Exception as e:
-        print("DISCORD ERROR:", e)
-
-# ---------------- PRICE LOOP ---------------- #
+# ---------------- LOOP ---------------- #
 
 def price_loop():
     print("🔥 PRICE LOOP STARTED")
@@ -36,48 +22,26 @@ def price_loop():
         try:
             res = requests.get(url, timeout=10).json()
 
-            if isinstance(res, dict):
-                res = [res]
-
-            if not isinstance(res, list):
-                print("BAD RESPONSE TYPE:", type(res))
-                time.sleep(5)
-                continue
-
             for item in res:
                 try:
-                    if not isinstance(item, dict):
-                        continue
-
                     symbol = item.get("symbol")
                     price = item.get("price")
 
-                    # 🔥 CRASH PROTECTION (THIS IS THE FIX)
                     if symbol is None or price is None:
                         continue
 
-                    try:
-                        price = float(price)
-                    except:
-                        continue
+                    price = float(price)
 
-                    # DEBUG (optional)
-                    if symbol == "LINKUSDT":
-                        print("FOUND LINK:", price)
-
-                    # ALERT CHECK
                     if symbol in alerts:
                         for target in alerts[symbol][:]:
-                            try:
-                                if price >= target:
-                                    print("🔔 TRIGGER", symbol, price)
-                                    send_alert(f"🔔 {symbol} hit {price}")
-                                    alerts[symbol].remove(target)
-                            except Exception as e:
-                                print("TRIGGER ERROR:", e)
+                            if price >= target:
+                                print("🔔 TRIGGER", symbol, price)
+                                if DISCORD_WEBHOOK:
+                                    requests.post(DISCORD_WEBHOOK, json={"content": f"{symbol} hit {price}"})
+                                alerts[symbol].remove(target)
 
-                except Exception as e:
-                    print("ITEM ERROR:", e)
+                except:
+                    continue
 
             time.sleep(2)
 
@@ -85,13 +49,9 @@ def price_loop():
             print("LOOP ERROR:", e)
             time.sleep(5)
 
-# ---------------- START LOOP ---------------- #
+# ---------------- START THREAD IMMEDIATELY ---------------- #
 
-def start_loop():
-    price_loop()
-
-import threading
-threading.Thread(target=start_loop, daemon=True).start()
+threading.Thread(target=price_loop, daemon=True).start()
 
 # ---------------- API ---------------- #
 
@@ -102,31 +62,26 @@ def get_alerts():
 
 @app.post("/add")
 def add_alert(data: dict, x_api_key: str = Header(None)):
-    verify_key(x_api_key)
+    if x_api_key != API_KEY:
+        raise HTTPException(status_code=401)
 
     coin = data["coin"].upper()
     price = float(data["price"])
 
-    if coin not in alerts:
-        alerts[coin] = []
-
-    alerts[coin].append(price)
-
-    print("➕ ADDED", coin, price)
+    alerts.setdefault(coin, []).append(price)
 
     return {"status": "added", "alerts": alerts}
 
 
 @app.post("/remove")
 def remove_alert(data: dict, x_api_key: str = Header(None)):
-    verify_key(x_api_key)
+    if x_api_key != API_KEY:
+        raise HTTPException(status_code=401)
 
     coin = data["coin"].upper()
     price = float(data["price"])
 
     if coin in alerts and price in alerts[coin]:
         alerts[coin].remove(price)
-
-    print("➖ REMOVED", coin, price)
 
     return {"status": "removed", "alerts": alerts}
