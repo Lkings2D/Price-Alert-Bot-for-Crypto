@@ -35,6 +35,7 @@ def send_alert(msg):
 
 def price_loop():
     print("🔥 PRICE LOOP STARTED")
+    print(symbol, price)
 
     url = "https://api.binance.com/api/v3/ticker/price"
 
