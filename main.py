@@ -141,7 +141,7 @@ async def price_loop():
                     requests.post(
                         WEBHOOK,
                         json={
-                            "content": f"🚨 {coin} hit ${alert['price']:,} (now ${current:,})"
+                            "content": f"<@346060319770148864> {coin} hit ${alert['price']:,} (now ${current:,})"
                         }
                     )
                     triggered.append(alert)
