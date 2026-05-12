@@ -19,6 +19,10 @@ SUPPORTED_COINS = ["BTC", "ETH", "LINK", "SOL", "XRP", "XMR"]
 
 MEXC_SYMBOLS = {coin: f"{coin}USDT" for coin in SUPPORTED_COINS}
 
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
+
 # LOGIN + DASHBOARD
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request, password: str = ""):
