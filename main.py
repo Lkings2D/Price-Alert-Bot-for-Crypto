@@ -3,8 +3,6 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
 import asyncio
-import websockets
-import json
 import requests
 import os
 
@@ -18,6 +16,15 @@ WEBHOOK = os.getenv("DISCORD_WEBHOOK")
 PASSWORD = os.getenv("DASH_PASSWORD")
 
 SUPPORTED_COINS = ["BTC", "ETH", "LINK", "SOL", "XRP", "XMR"]
+
+COINGECKO_IDS = {
+    "BTC": "bitcoin",
+    "ETH": "ethereum",
+    "LINK": "chainlink",
+    "SOL": "solana",
+    "XRP": "ripple",
+    "XMR": "monero"
+}
 
 # LOGIN + DASHBOARD
 @app.get("/", response_class=HTMLResponse)
@@ -111,24 +118,33 @@ async def remove_alert(
 
     """)
 
-# REALTIME BINANCE SOCKET FOR A SINGLE COIN
-async def socket_loop(coin: str):
+# POLL COINGECKO PRICES
+async def price_loop():
 
-    symbol = f"{coin.lower()}usdt"
-    uri = f"wss://stream.binance.com:9443/ws/{symbol}@trade"
+    while True:
 
-    async with websockets.connect(uri) as ws:
+        try:
 
-        while True:
+            ids = ",".join(COINGECKO_IDS[coin] for coin in SUPPORTED_COINS)
 
-            data = json.loads(await ws.recv())
+            response = requests.get(
+                "https://api.coingecko.com/api/v3/simple/price",
+                params={"ids": ids, "vs_currencies": "usd"},
+                timeout=10
+            )
 
-            current = float(data["p"])
+            prices = response.json()
+
+            print("Prices:", {coin: prices.get(COINGECKO_IDS[coin], {}).get("usd") for coin in SUPPORTED_COINS})
 
             triggered = []
 
             for alert in alerts:
-                if alert["coin"] == coin and current >= alert["price"]:
+                coin = alert["coin"]
+                gecko_id = COINGECKO_IDS.get(coin)
+                current = prices.get(gecko_id, {}).get("usd")
+
+                if current and current >= alert["price"]:
                     requests.post(
                         WEBHOOK,
                         json={
@@ -141,19 +157,13 @@ async def socket_loop(coin: str):
                 if t in alerts:
                     alerts.remove(t)
 
-async def socket_loop_with_retry(coin: str):
-
-    while True:
-
-        try:
-            await socket_loop(coin)
         except Exception as e:
-            print(f"[{coin}] Socket error: {e}. Retrying in 30 seconds...")
-            await asyncio.sleep(30)
+            print(f"Price fetch error: {e}")
 
-# START SOCKETS FOR ALL COINS
+        await asyncio.sleep(30)
+
+# START PRICE LOOP
 @app.on_event("startup")
 async def startup():
 
-    for coin in SUPPORTED_COINS:
-        asyncio.create_task(socket_loop_with_retry(coin))
+    asyncio.create_task(price_loop())
