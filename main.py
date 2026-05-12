@@ -35,19 +35,28 @@ def price_loop():
 
     while True:
         try:
-            res = requests.get(url, timeout=10).json()
+            response = requests.get(url, timeout=10)
 
-            # 🔥 FORCE SAFE TYPE
+            # 🔥 SAFE JSON PARSE
+            try:
+                res = response.json()
+            except:
+                print("❌ JSON PARSE FAILED:", response.text)
+                time.sleep(5)
+                continue
+
+            # FORCE LIST FORMAT
             if isinstance(res, dict):
                 res = [res]
 
             if not isinstance(res, list):
-                print("❌ Unexpected response type:", type(res), res)
+                print("❌ BAD RESPONSE TYPE:", type(res))
                 time.sleep(5)
                 continue
 
             for item in res:
                 if not isinstance(item, dict):
+                    print("SKIPPING NON-DICT:", item)
                     continue
 
                 symbol = item.get("symbol")
@@ -60,11 +69,11 @@ def price_loop():
 
                 if symbol in alerts and alerts[symbol]:
                     for target in alerts[symbol][:]:
-                        print(f"CHECK {symbol} {price} vs {target}")
+                        print("CHECK", symbol, price, target)
 
                         if price >= target:
-                            print(f"🔔 TRIGGERED {symbol} {price}")
-                            send_alert(f"{symbol} hit {price}")
+                            print("🔔 TRIGGER", symbol, price)
+                            send_alert(f"🔔 {symbol} hit {price}")
                             alerts[symbol].remove(target)
 
             time.sleep(2)
