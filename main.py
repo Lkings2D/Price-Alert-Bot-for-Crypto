@@ -37,7 +37,19 @@ def price_loop():
         try:
             res = requests.get(url, timeout=10).json()
 
+            # 🔥 FORCE SAFE TYPE
+            if isinstance(res, dict):
+                res = [res]
+
+            if not isinstance(res, list):
+                print("❌ Unexpected response type:", type(res), res)
+                time.sleep(5)
+                continue
+
             for item in res:
+                if not isinstance(item, dict):
+                    continue
+
                 symbol = item.get("symbol")
                 price = item.get("price")
 
@@ -52,7 +64,7 @@ def price_loop():
 
                         if price >= target:
                             print(f"🔔 TRIGGERED {symbol} {price}")
-                            send_alert(f"🔔 {symbol} hit {price}")
+                            send_alert(f"{symbol} hit {price}")
                             alerts[symbol].remove(target)
 
             time.sleep(2)
@@ -60,7 +72,6 @@ def price_loop():
         except Exception as e:
             print("❌ LOOP ERROR:", e)
             time.sleep(5)
-
 # ---------------- STARTUP ---------------- #
 
 def start_loop():
