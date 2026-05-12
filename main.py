@@ -1,6 +1,6 @@
 import os
 import requests
-import asyncio
+import time
 from fastapi import FastAPI, Header, HTTPException
 
 DISCORD_WEBHOOK = os.getenv("DISCORD_WEBHOOK")
@@ -27,7 +27,7 @@ def send_alert(msg):
 
 # ---------------- PRICE LOOP ---------------- #
 
-async def price_loop():
+def price_loop():
     print("🔥 PRICE LOOP STARTED")
 
     url = "https://api.binance.com/api/v3/ticker/price"
@@ -40,46 +40,58 @@ async def price_loop():
                 res = [res]
 
             if not isinstance(res, list):
+                print("BAD RESPONSE TYPE:", type(res))
+                time.sleep(5)
                 continue
 
             for item in res:
-                if not isinstance(item, dict):
-                    continue
-
-                symbol = item.get("symbol")
-                price = item.get("price")
-
-                # 🔥 FIX: prevent NoneType crash
-                if symbol is None or price is None:
-                    continue
-
                 try:
-                    price = float(price)
-                except (TypeError, ValueError):
-                    continue
+                    if not isinstance(item, dict):
+                        continue
 
-                if symbol in alerts:
-                    for target in alerts[symbol][:]:
-                        try:
-                            if price >= target:
-                                print("🔔 TRIGGER", symbol, price)
-                                send_alert(f"🔔 {symbol} hit {price}")
-                                alerts[symbol].remove(target)
-                        except Exception as e:
-                            print("TRIGGER ERROR:", e)
+                    symbol = item.get("symbol")
+                    price = item.get("price")
 
-            await asyncio.sleep(2)
+                    # 🔥 CRASH PROTECTION (THIS IS THE FIX)
+                    if symbol is None or price is None:
+                        continue
+
+                    try:
+                        price = float(price)
+                    except:
+                        continue
+
+                    # DEBUG (optional)
+                    if symbol == "LINKUSDT":
+                        print("FOUND LINK:", price)
+
+                    # ALERT CHECK
+                    if symbol in alerts:
+                        for target in alerts[symbol][:]:
+                            try:
+                                if price >= target:
+                                    print("🔔 TRIGGER", symbol, price)
+                                    send_alert(f"🔔 {symbol} hit {price}")
+                                    alerts[symbol].remove(target)
+                            except Exception as e:
+                                print("TRIGGER ERROR:", e)
+
+                except Exception as e:
+                    print("ITEM ERROR:", e)
+
+            time.sleep(2)
 
         except Exception as e:
             print("LOOP ERROR:", e)
-            await asyncio.sleep(5)
+            time.sleep(5)
 
-# ---------------- STARTUP ---------------- #
+# ---------------- START LOOP ---------------- #
 
-@app.on_event("startup")
-async def startup():
-    asyncio.create_task(price_loop())
-    print("🚀 FASTAPI STARTED")
+def start_loop():
+    price_loop()
+
+import threading
+threading.Thread(target=start_loop, daemon=True).start()
 
 # ---------------- API ---------------- #
 
@@ -95,11 +107,14 @@ def add_alert(data: dict, x_api_key: str = Header(None)):
     coin = data["coin"].upper()
     price = float(data["price"])
 
-    alerts.setdefault(coin, []).append(price)
+    if coin not in alerts:
+        alerts[coin] = []
+
+    alerts[coin].append(price)
 
     print("➕ ADDED", coin, price)
 
-    return {"status": "added"}
+    return {"status": "added", "alerts": alerts}
 
 
 @app.post("/remove")
@@ -112,4 +127,6 @@ def remove_alert(data: dict, x_api_key: str = Header(None)):
     if coin in alerts and price in alerts[coin]:
         alerts[coin].remove(price)
 
-    return {"status": "removed"}
+    print("➖ REMOVED", coin, price)
+
+    return {"status": "removed", "alerts": alerts}
