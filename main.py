@@ -1,19 +1,15 @@
 import os
-import threading
 import requests
 import time
+import asyncio
 from fastapi import FastAPI, Header, HTTPException
-
-# ---------------- ENV ---------------- #
 
 DISCORD_WEBHOOK = os.getenv("DISCORD_WEBHOOK")
 API_KEY = os.getenv("API_KEY")
 
-PORT = int(os.environ.get("PORT", 8080))
-
-# ---------------- STATE ---------------- #
-
 alerts = {}
+
+app = FastAPI()
 
 # ---------------- SECURITY ---------------- #
 
@@ -32,73 +28,43 @@ def send_alert(msg):
 
 # ---------------- PRICE LOOP ---------------- #
 
-def price_loop():
+async def price_loop():
     print("🔥 PRICE LOOP STARTED")
 
     url = "https://api.binance.com/api/v3/ticker/price"
 
     while True:
         try:
-            response = requests.get(url, timeout=10)
-
-            try:
-                res = response.json()
-            except Exception:
-                print("❌ JSON PARSE FAILED:", response.text)
-                time.sleep(5)
-                continue
+            res = requests.get(url, timeout=10).json()
 
             if isinstance(res, dict):
                 res = [res]
 
-            if not isinstance(res, list):
-                print("❌ BAD RESPONSE TYPE:", type(res))
-                time.sleep(5)
-                continue
-
             for item in res:
-                if not isinstance(item, dict):
-                    continue
-
                 symbol = item.get("symbol")
-                price = item.get("price")
+                price = float(item.get("price"))
 
-                if not symbol or not price:
-                    continue
-
-                price = float(price)
-
-                # debug only LINKUSDT
-                if symbol == "LINKUSDT":
-                    print("FOUND LINK:", price)
-
-                if symbol in alerts and alerts[symbol]:
+                if symbol in alerts:
                     for target in alerts[symbol][:]:
-                        print("CHECK", symbol, price, target)
-
                         if price >= target:
                             print("🔔 TRIGGER", symbol, price)
                             send_alert(f"🔔 {symbol} hit {price}")
                             alerts[symbol].remove(target)
 
-            time.sleep(2)
+            await asyncio.sleep(2)
 
         except Exception as e:
-            print("❌ LOOP ERROR:", e)
-            time.sleep(5)
+            print("ERROR:", e)
+            await asyncio.sleep(5)
 
-# ---------------- START BACKGROUND LOOP ---------------- #
+# ---------------- STARTUP ---------------- #
 
-def start_loop():
-    price_loop()
+@app.on_event("startup")
+async def startup():
+    asyncio.create_task(price_loop())
+    print("🚀 FASTAPI STARTED")
 
-# 🔥 IMPORTANT: start thread at module level (NOT startup event)
-thread = threading.Thread(target=start_loop, daemon=True)
-thread.start()
-
-# ---------------- FASTAPI ---------------- #
-
-app = FastAPI()
+# ---------------- API ---------------- #
 
 @app.get("/alerts")
 def get_alerts():
@@ -112,15 +78,11 @@ def add_alert(data: dict, x_api_key: str = Header(None)):
     coin = data["coin"].upper()
     price = float(data["price"])
 
-    if coin not in alerts:
-        alerts[coin] = []
+    alerts.setdefault(coin, []).append(price)
 
-    alerts[coin].append(price)
+    print("➕ ADDED", coin, price)
 
-    print(f"➕ ADDED ALERT {coin} @ {price}")
-
-    return {"status": "added", "alerts": alerts}
-
+    return {"status": "added"}
 
 @app.post("/remove")
 def remove_alert(data: dict, x_api_key: str = Header(None)):
@@ -132,12 +94,4 @@ def remove_alert(data: dict, x_api_key: str = Header(None)):
     if coin in alerts and price in alerts[coin]:
         alerts[coin].remove(price)
 
-    print(f"➖ REMOVED ALERT {coin} @ {price}")
-
-    return {"status": "removed", "alerts": alerts}
-
-# ---------------- RAILWAY ENTRY ---------------- #
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=PORT)
+    return {"status": "removed"}
