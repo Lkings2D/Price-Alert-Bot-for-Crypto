@@ -4,15 +4,21 @@ import json
 import threading
 import requests
 import websockets
-from fastapi import FastAPI
+from fastapi import FastAPI, Header, HTTPException
 
 app = FastAPI()
 
 DISCORD_WEBHOOK = os.getenv("DISCORD_WEBHOOK")
+API_KEY = os.getenv("API_KEY")
 
 # in-memory alerts
-# { "BTCUSDT": [75000, 70000] }
 alerts = {}
+
+# ---------------- SECURITY ---------------- #
+
+def verify_key(x_api_key: str):
+    if x_api_key != API_KEY:
+        raise HTTPException(status_code=401, detail="Unauthorized")
 
 # ---------------- API ---------------- #
 
@@ -22,7 +28,9 @@ def get_alerts():
 
 
 @app.post("/add")
-def add_alert(data: dict):
+def add_alert(data: dict, x_api_key: str = Header(None)):
+    verify_key(x_api_key)
+
     coin = data["coin"].upper()
     price = float(data["price"])
 
@@ -34,7 +42,9 @@ def add_alert(data: dict):
 
 
 @app.post("/remove")
-def remove_alert(data: dict):
+def remove_alert(data: dict, x_api_key: str = Header(None)):
+    verify_key(x_api_key)
+
     coin = data["coin"].upper()
     price = float(data["price"])
 
@@ -66,7 +76,6 @@ async def price_loop():
                     for target in alerts[symbol][:]:
                         if price >= target:
                             send_alert(f"🔔 {symbol} hit {price}")
-
                             alerts[symbol].remove(target)
 
 
