@@ -17,14 +17,7 @@ PASSWORD = os.getenv("DASH_PASSWORD")
 
 SUPPORTED_COINS = ["BTC", "ETH", "LINK", "SOL", "XRP", "XMR"]
 
-COINGECKO_IDS = {
-    "BTC": "bitcoin",
-    "ETH": "ethereum",
-    "LINK": "chainlink",
-    "SOL": "solana",
-    "XRP": "ripple",
-    "XMR": "monero"
-}
+MEXC_SYMBOLS = {coin: f"{coin}USDT" for coin in SUPPORTED_COINS}
 
 # LOGIN + DASHBOARD
 @app.get("/", response_class=HTMLResponse)
@@ -118,37 +111,37 @@ async def remove_alert(
 
     """)
 
-# POLL COINGECKO PRICES
+# POLL MEXC PRICES
 async def price_loop():
 
     while True:
 
         try:
 
-            ids = ",".join(COINGECKO_IDS[coin] for coin in SUPPORTED_COINS)
-
+            symbols = list(MEXC_SYMBOLS.values())
             response = requests.get(
-                "https://api.coingecko.com/api/v3/simple/price",
-                params={"ids": ids, "vs_currencies": "usd"},
+                "https://api.mexc.com/api/v3/ticker/price",
+                params={"symbols": str(symbols).replace("'", '"').replace(" ", "")},
                 timeout=10
             )
 
-            prices = response.json()
+            data = response.json()
+            prices = {entry["symbol"]: float(entry["price"]) for entry in data}
 
-            print("Prices:", {coin: prices.get(COINGECKO_IDS[coin], {}).get("usd") for coin in SUPPORTED_COINS})
+            print("Prices:", {coin: prices.get(MEXC_SYMBOLS[coin]) for coin in SUPPORTED_COINS})
 
             triggered = []
 
             for alert in alerts:
                 coin = alert["coin"]
-                gecko_id = COINGECKO_IDS.get(coin)
-                current = prices.get(gecko_id, {}).get("usd")
+                symbol = MEXC_SYMBOLS.get(coin)
+                current = prices.get(symbol)
 
                 if current and current >= alert["price"]:
                     requests.post(
                         WEBHOOK,
                         json={
-                            "content": f"🚨 {coin} hit ${alert['price']:,.2f} (now ${current:,.2f})"
+                            "content": f"🚨 {coin} hit ${alert['price']:,} (now ${current:,})"
                         }
                     )
                     triggered.append(alert)
