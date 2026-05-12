@@ -17,6 +17,8 @@ alerts = []
 WEBHOOK = os.getenv("DISCORD_WEBHOOK")
 PASSWORD = os.getenv("DASH_PASSWORD")
 
+SUPPORTED_COINS = ["BTC", "ETH", "BNB", "SOL", "XRP", "ADA", "DOGE", "AVAX", "DOT", "MATIC"]
+
 # LOGIN + DASHBOARD
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request, password: str = ""):
@@ -29,7 +31,7 @@ async def home(request: Request, password: str = ""):
 
         <body style="font-family:sans-serif;padding:40px;">
 
-            <h1>BTC Alert Login</h1>
+            <h1>Crypto Alert Login</h1>
 
             <form>
 
@@ -56,7 +58,8 @@ async def home(request: Request, password: str = ""):
         "index.html",
         {
             "alerts": alerts,
-            "password": password
+            "password": password,
+            "coins": SUPPORTED_COINS
         }
     )
 
@@ -65,13 +68,18 @@ async def home(request: Request, password: str = ""):
 async def add_alert(
     request: Request,
     password: str = Form(...),
+    coin: str = Form(...),
     price: float = Form(...)
 ):
 
     if password != PASSWORD:
         return {"error": "wrong password"}
 
-    alerts.append(price)
+    coin = coin.upper()
+    if coin not in SUPPORTED_COINS:
+        return {"error": "unsupported coin"}
+
+    alerts.append({"coin": coin, "price": price})
 
     return HTMLResponse(f"""
 
@@ -81,10 +89,33 @@ async def add_alert(
 
     """)
 
-# REALTIME BINANCE SOCKET
-async def socket_loop():
+# REMOVE ALERT
+@app.post("/remove")
+async def remove_alert(
+    request: Request,
+    password: str = Form(...),
+    index: int = Form(...)
+):
 
-    uri = "wss://stream.binance.com:9443/ws/btcusdt@trade"
+    if password != PASSWORD:
+        return {"error": "wrong password"}
+
+    if 0 <= index < len(alerts):
+        alerts.pop(index)
+
+    return HTMLResponse(f"""
+
+    <script>
+        window.location.href='/?password={password}'
+    </script>
+
+    """)
+
+# REALTIME BINANCE SOCKET FOR A SINGLE COIN
+async def socket_loop(coin: str):
+
+    symbol = f"{coin.lower()}usdt"
+    uri = f"wss://stream.binance.com:9443/ws/{symbol}@trade"
 
     async with websockets.connect(uri) as ws:
 
@@ -94,38 +125,35 @@ async def socket_loop():
 
             current = float(data["p"])
 
-            print(current)
-
             triggered = []
 
-            for target in alerts:
-
-                if current >= target:
-
+            for alert in alerts:
+                if alert["coin"] == coin and current >= alert["price"]:
                     requests.post(
                         WEBHOOK,
                         json={
-                            "content": f"🚨 BTC hit ${target}"
+                            "content": f"🚨 {coin} hit ${alert['price']:,.2f} (now ${current:,.2f})"
                         }
                     )
-
-                    triggered.append(target)
+                    triggered.append(alert)
 
             for t in triggered:
-                alerts.remove(t)
+                if t in alerts:
+                    alerts.remove(t)
 
-# START SOCKET
-@app.on_event("startup")
-async def startup():
-
-    asyncio.create_task(socket_loop_with_retry())
-
-async def socket_loop_with_retry():
+async def socket_loop_with_retry(coin: str):
 
     while True:
 
         try:
-            await socket_loop()
+            await socket_loop(coin)
         except Exception as e:
-            print(f"Socket error: {e}. Retrying in 30 seconds...")
+            print(f"[{coin}] Socket error: {e}. Retrying in 30 seconds...")
             await asyncio.sleep(30)
+
+# START SOCKETS FOR ALL COINS
+@app.on_event("startup")
+async def startup():
+
+    for coin in SUPPORTED_COINS:
+        asyncio.create_task(socket_loop_with_retry(coin))
