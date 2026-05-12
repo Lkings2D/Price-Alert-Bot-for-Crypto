@@ -12,6 +12,8 @@ API_KEY = os.getenv("API_KEY")
 
 alerts = {}
 
+app = FastAPI()
+
 # ---------------- SECURITY ---------------- #
 
 def verify_key(x_api_key: str):
@@ -38,26 +40,40 @@ def price_loop():
         try:
             res = requests.get(url, timeout=10).json()
 
+            # Binance safety fallback
+            if isinstance(res, dict):
+                res = [res]
+
+            if not isinstance(res, list):
+                time.sleep(5)
+                continue
+
             for item in res:
+                # 🔥 FIX: prevent string crash
+                if not isinstance(item, dict):
+                    continue
+
+                symbol = item.get("symbol")
+                price = item.get("price")
+
+                if symbol is None or price is None:
+                    continue
+
                 try:
-                    symbol = item.get("symbol")
-                    price = item.get("price")
-
-                    if symbol is None or price is None:
-                        continue
-
                     price = float(price)
+                except:
+                    continue
 
-                    if symbol in alerts:
-                        for target in alerts[symbol][:]:
+                # ALERT CHECK
+                if symbol in alerts:
+                    for target in alerts[symbol][:]:
+                        try:
                             if price >= target:
                                 print("🔔 TRIGGER", symbol, price)
                                 send_alert(f"🔔 {symbol} hit {price}")
                                 alerts[symbol].remove(target)
-
-                except Exception as e:
-                    print("ITEM ERROR:", e)
-                    continue
+                        except:
+                            continue
 
             time.sleep(2)
 
@@ -65,18 +81,20 @@ def price_loop():
             print("LOOP ERROR:", e)
             time.sleep(5)
 
-# ---------------- STARTUP LIFECYCLE ---------------- #
+# ---------------- STARTUP (RAILWAY SAFE) ---------------- #
+
+def start_loop():
+    price_loop()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     print("🚀 FASTAPI STARTED")
 
-    thread = threading.Thread(target=price_loop, daemon=True)
+    thread = threading.Thread(target=start_loop, daemon=True)
     thread.start()
 
     yield
 
-# IMPORTANT: lifespan must be passed here
 app = FastAPI(lifespan=lifespan)
 
 # ---------------- HEALTH CHECK ---------------- #
