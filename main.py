@@ -52,9 +52,9 @@ async def home(request: Request, password: str = ""):
         """)
 
     return templates.TemplateResponse(
+        request,
         "index.html",
         {
-            "request": request,
             "alerts": alerts,
             "password": password
         }
