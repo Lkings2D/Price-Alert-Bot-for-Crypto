@@ -1,6 +1,5 @@
 import os
 import requests
-import time
 import asyncio
 from fastapi import FastAPI, Header, HTTPException
 
@@ -40,21 +39,39 @@ async def price_loop():
             if isinstance(res, dict):
                 res = [res]
 
+            if not isinstance(res, list):
+                continue
+
             for item in res:
+                if not isinstance(item, dict):
+                    continue
+
                 symbol = item.get("symbol")
-                price = float(item.get("price"))
+                price = item.get("price")
+
+                # 🔥 FIX: prevent NoneType crash
+                if symbol is None or price is None:
+                    continue
+
+                try:
+                    price = float(price)
+                except (TypeError, ValueError):
+                    continue
 
                 if symbol in alerts:
                     for target in alerts[symbol][:]:
-                        if price >= target:
-                            print("🔔 TRIGGER", symbol, price)
-                            send_alert(f"🔔 {symbol} hit {price}")
-                            alerts[symbol].remove(target)
+                        try:
+                            if price >= target:
+                                print("🔔 TRIGGER", symbol, price)
+                                send_alert(f"🔔 {symbol} hit {price}")
+                                alerts[symbol].remove(target)
+                        except Exception as e:
+                            print("TRIGGER ERROR:", e)
 
             await asyncio.sleep(2)
 
         except Exception as e:
-            print("ERROR:", e)
+            print("LOOP ERROR:", e)
             await asyncio.sleep(5)
 
 # ---------------- STARTUP ---------------- #
@@ -83,6 +100,7 @@ def add_alert(data: dict, x_api_key: str = Header(None)):
     print("➕ ADDED", coin, price)
 
     return {"status": "added"}
+
 
 @app.post("/remove")
 def remove_alert(data: dict, x_api_key: str = Header(None)):
