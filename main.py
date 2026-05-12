@@ -23,8 +23,11 @@ def verify_key(x_api_key: str):
 # ---------------- DISCORD ---------------- #
 
 def send_alert(msg):
-    if DISCORD_WEBHOOK:
-        requests.post(DISCORD_WEBHOOK, json={"content": msg})
+    try:
+        if DISCORD_WEBHOOK:
+            requests.post(DISCORD_WEBHOOK, json={"content": msg}, timeout=5)
+    except Exception as e:
+        print("DISCORD ERROR:", e)
 
 # ---------------- PRICE LOOP ---------------- #
 
@@ -37,15 +40,13 @@ def price_loop():
         try:
             response = requests.get(url, timeout=10)
 
-            # 🔥 SAFE JSON PARSE
             try:
                 res = response.json()
-            except:
+            except Exception:
                 print("❌ JSON PARSE FAILED:", response.text)
                 time.sleep(5)
                 continue
 
-            # FORCE LIST FORMAT
             if isinstance(res, dict):
                 res = [res]
 
@@ -56,7 +57,6 @@ def price_loop():
 
             for item in res:
                 if not isinstance(item, dict):
-                    print("SKIPPING NON-DICT:", item)
                     continue
 
                 symbol = item.get("symbol")
@@ -67,13 +67,18 @@ def price_loop():
 
                 price = float(price)
 
+                # 🔥 DEBUG (remove later if you want)
+                if symbol == "LINKUSDT":
+                    print("FOUND LINK:", price)
+
                 if symbol in alerts and alerts[symbol]:
                     for target in alerts[symbol][:]:
                         print("CHECK", symbol, price, target)
 
+                        # 🔥 RELIABLE TRIGGER (no missed spikes)
                         if price >= target:
                             print("🔔 TRIGGER", symbol, price)
-                            send_alert(f"🔔 {symbol} hit {price}")
+                            send_alert(f"{symbol} hit {price}")
                             alerts[symbol].remove(target)
 
             time.sleep(2)
@@ -81,6 +86,7 @@ def price_loop():
         except Exception as e:
             print("❌ LOOP ERROR:", e)
             time.sleep(5)
+
 # ---------------- STARTUP ---------------- #
 
 def start_loop():
