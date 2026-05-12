@@ -19,7 +19,7 @@ SUPPORTED_COINS = ["BTC", "ETH", "LINK", "SOL", "XRP", "XMR"]
 
 MEXC_SYMBOLS = {coin: f"{coin}USDT" for coin in SUPPORTED_COINS}
 
-@app.get("/health")
+@app.api_route("/health", methods=["GET", "HEAD"])
 async def health():
     return {"status": "ok"}
 
