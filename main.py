@@ -1,17 +1,17 @@
 import os
-import asyncio
-import json
 import threading
 import requests
-import websockets
+import time
 from fastapi import FastAPI, Header, HTTPException
+from contextlib import asynccontextmanager
 
-app = FastAPI()
+# ---------------- ENV ---------------- #
 
 DISCORD_WEBHOOK = os.getenv("DISCORD_WEBHOOK")
 API_KEY = os.getenv("API_KEY")
 
-# in-memory alerts
+# ---------------- STATE ---------------- #
+
 alerts = {}
 
 # ---------------- SECURITY ---------------- #
@@ -19,6 +19,50 @@ alerts = {}
 def verify_key(x_api_key: str):
     if x_api_key != API_KEY:
         raise HTTPException(status_code=401, detail="Unauthorized")
+
+# ---------------- PRICE ENGINE ---------------- #
+
+def send_alert(msg):
+    if DISCORD_WEBHOOK:
+        requests.post(DISCORD_WEBHOOK, json={"content": msg})
+
+
+def price_loop():
+    url = "https://api.binance.com/api/v3/ticker/price"
+
+    while True:
+        try:
+            res = requests.get(url, timeout=10).json()
+
+            for item in res:
+                symbol = item["symbol"]
+                price = float(item["price"])
+
+                if symbol in alerts and alerts[symbol]:
+                    for target in alerts[symbol][:]:
+                        if price >= target:
+                            send_alert(f"🔔 {symbol} hit {price}")
+                            alerts[symbol].remove(target)
+
+            time.sleep(2)
+
+        except Exception as e:
+            print("Price loop error:", e)
+            time.sleep(5)
+
+
+def start_loop():
+    price_loop()
+
+# ---------------- FASTAPI LIFESPAN ---------------- #
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    thread = threading.Thread(target=start_loop, daemon=True)
+    thread.start()
+    yield
+
+app = FastAPI(lifespan=lifespan)
 
 # ---------------- API ---------------- #
 
@@ -52,37 +96,3 @@ def remove_alert(data: dict, x_api_key: str = Header(None)):
         alerts[coin].remove(price)
 
     return {"status": "removed", "alerts": alerts}
-
-
-# ---------------- PRICE ENGINE ---------------- #
-
-def send_alert(msg):
-    requests.post(DISCORD_WEBHOOK, json={"content": msg})
-
-
-async def price_loop():
-    url = "wss://stream.binance.com:9443/ws/!ticker@arr"
-
-    async with websockets.connect(url) as ws:
-        while True:
-            msg = await ws.recv()
-            data = json.loads(msg)
-
-            for item in data:
-                symbol = item["s"]
-                price = float(item["c"])
-
-                if symbol in alerts:
-                    for target in alerts[symbol][:]:
-                        if price >= target:
-                            send_alert(f"🔔 {symbol} hit {price}")
-                            alerts[symbol].remove(target)
-
-
-def start_loop():
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    loop.run_until_complete(price_loop())
-
-
-threading.Thread(target=start_loop, daemon=True).start()
