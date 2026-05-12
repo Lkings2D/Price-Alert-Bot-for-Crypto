@@ -34,9 +34,18 @@ def price_loop():
         try:
             res = requests.get(url, timeout=10).json()
 
+            # ensure it's a list
+            if isinstance(res, dict):
+                res = [res]
+
             for item in res:
-                symbol = item["symbol"]
-                price = float(item["price"])
+                symbol = item.get("symbol")
+                price = item.get("price")
+
+                if not symbol or not price:
+                    continue
+
+                price = float(price)
 
                 if symbol in alerts and alerts[symbol]:
                     for target in alerts[symbol][:]:
