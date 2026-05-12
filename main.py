@@ -160,7 +160,7 @@ async def price_loop():
         except Exception as e:
             print(f"Price fetch error: {e}")
 
-        await asyncio.sleep(30)
+        await asyncio.sleep(10)
 
 # START PRICE LOOP
 @app.on_event("startup")
