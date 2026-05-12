@@ -3,15 +3,31 @@ import threading
 import requests
 import time
 from fastapi import FastAPI, Header, HTTPException
+from contextlib import asynccontextmanager
+
+# ---------------- ENV ---------------- #
 
 DISCORD_WEBHOOK = os.getenv("DISCORD_WEBHOOK")
 API_KEY = os.getenv("API_KEY")
 
 alerts = {}
 
-app = FastAPI()
+# ---------------- SECURITY ---------------- #
 
-# ---------------- LOOP ---------------- #
+def verify_key(x_api_key: str):
+    if x_api_key != API_KEY:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+# ---------------- DISCORD ---------------- #
+
+def send_alert(msg):
+    try:
+        if DISCORD_WEBHOOK:
+            requests.post(DISCORD_WEBHOOK, json={"content": msg}, timeout=5)
+    except Exception as e:
+        print("DISCORD ERROR:", e)
+
+# ---------------- PRICE LOOP ---------------- #
 
 def price_loop():
     print("🔥 PRICE LOOP STARTED")
@@ -36,11 +52,11 @@ def price_loop():
                         for target in alerts[symbol][:]:
                             if price >= target:
                                 print("🔔 TRIGGER", symbol, price)
-                                if DISCORD_WEBHOOK:
-                                    requests.post(DISCORD_WEBHOOK, json={"content": f"{symbol} hit {price}"})
+                                send_alert(f"🔔 {symbol} hit {price}")
                                 alerts[symbol].remove(target)
 
-                except:
+                except Exception as e:
+                    print("ITEM ERROR:", e)
                     continue
 
             time.sleep(2)
@@ -49,9 +65,25 @@ def price_loop():
             print("LOOP ERROR:", e)
             time.sleep(5)
 
-# ---------------- START THREAD IMMEDIATELY ---------------- #
+# ---------------- STARTUP LIFECYCLE ---------------- #
 
-threading.Thread(target=price_loop, daemon=True).start()
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    print("🚀 FASTAPI STARTED")
+
+    thread = threading.Thread(target=price_loop, daemon=True)
+    thread.start()
+
+    yield
+
+# IMPORTANT: lifespan must be passed here
+app = FastAPI(lifespan=lifespan)
+
+# ---------------- HEALTH CHECK ---------------- #
+
+@app.get("/")
+def root():
+    return {"status": "alive"}
 
 # ---------------- API ---------------- #
 
@@ -62,26 +94,28 @@ def get_alerts():
 
 @app.post("/add")
 def add_alert(data: dict, x_api_key: str = Header(None)):
-    if x_api_key != API_KEY:
-        raise HTTPException(status_code=401)
+    verify_key(x_api_key)
 
     coin = data["coin"].upper()
     price = float(data["price"])
 
     alerts.setdefault(coin, []).append(price)
 
+    print("➕ ADDED", coin, price)
+
     return {"status": "added", "alerts": alerts}
 
 
 @app.post("/remove")
 def remove_alert(data: dict, x_api_key: str = Header(None)):
-    if x_api_key != API_KEY:
-        raise HTTPException(status_code=401)
+    verify_key(x_api_key)
 
     coin = data["coin"].upper()
     price = float(data["price"])
 
     if coin in alerts and price in alerts[coin]:
         alerts[coin].remove(price)
+
+    print("➖ REMOVED", coin, price)
 
     return {"status": "removed", "alerts": alerts}
