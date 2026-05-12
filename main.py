@@ -17,7 +17,7 @@ alerts = []
 WEBHOOK = os.getenv("DISCORD_WEBHOOK")
 PASSWORD = os.getenv("DASH_PASSWORD")
 
-SUPPORTED_COINS = ["BTC", "ETH", "BNB", "SOL", "XRP", "ADA", "DOGE", "AVAX", "DOT", "MATIC"]
+SUPPORTED_COINS = ["BTC", "ETH", "LINK", "SOL", "XRP", "XMR"]
 
 # LOGIN + DASHBOARD
 @app.get("/", response_class=HTMLResponse)
