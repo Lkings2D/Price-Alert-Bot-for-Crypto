@@ -92,7 +92,7 @@
             <li>
                 <span>
                     <span class="coin-badge">{{ alert.coin }}</span>
-                    hits ${{ "%.2f"|format(alert.price) }}
+                    hits ${{ alert.price }}
                 </span>
                 <form action="/remove" method="post" style="margin:0;">
                     <input type="hidden" name="password" value="{{ password }}">
