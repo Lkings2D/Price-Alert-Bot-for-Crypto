@@ -10,7 +10,10 @@ app = FastAPI()
 
 templates = Jinja2Templates(directory="templates")
 
+
 alerts = []
+# Track previous prices for each coin
+previous_prices = {}
 
 WEBHOOK = os.getenv("DISCORD_WEBHOOK")
 PASSWORD = os.getenv("DASH_PASSWORD")
@@ -116,6 +119,7 @@ async def remove_alert(
     """)
 
 # POLL MEXC PRICES
+
 async def price_loop():
 
     while True:
@@ -130,6 +134,7 @@ async def price_loop():
             )
 
             data = response.json()
+
             prices = {entry["symbol"]: float(entry["price"]) for entry in data}
 
             print("Prices:", {coin: prices.get(MEXC_SYMBOLS[coin]) for coin in SUPPORTED_COINS})
@@ -140,15 +145,31 @@ async def price_loop():
                 coin = alert["coin"]
                 symbol = MEXC_SYMBOLS.get(coin)
                 current = prices.get(symbol)
+                alert_price = alert["price"]
 
-                if current and current >= alert["price"]:
+                prev = previous_prices.get(coin)
+                # Only trigger if price crosses the alert value (up or down)
+                crossed = False
+                if prev is not None and current is not None:
+                    if (prev < alert_price <= current) or (prev > alert_price >= current):
+                        crossed = True
+                # If no previous price, don't trigger yet
+
+                if crossed:
                     requests.post(
                         WEBHOOK,
                         json={
-                            "content": f"<@346060319770148864> {coin} hit ${alert['price']:,} (now ${current:,})"
+                            "content": f"<@346060319770148864> {coin} crossed ${alert_price:,} (now ${current:,})"
                         }
                     )
                     triggered.append(alert)
+
+            # Update previous prices for all coins
+            for coin in SUPPORTED_COINS:
+                symbol = MEXC_SYMBOLS.get(coin)
+                price = prices.get(symbol)
+                if price is not None:
+                    previous_prices[coin] = price
 
             for t in triggered:
                 if t in alerts:
