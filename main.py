@@ -15,7 +15,7 @@ alerts = []
 WEBHOOK = os.getenv("DISCORD_WEBHOOK")
 PASSWORD = os.getenv("DASH_PASSWORD")
 
-SUPPORTED_COINS = ["BTC", "ETH", "LINK", "SOL", "XRP", "XMR"]
+SUPPORTED_COINS = ["BTC", "ETH", "LINK", "SOL", "XRP", "XMR", "DOGE", "PENGU"]
 
 MEXC_SYMBOLS = {coin: f"{coin}USDT" for coin in SUPPORTED_COINS}
 
