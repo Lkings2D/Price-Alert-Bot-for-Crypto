@@ -70,13 +70,15 @@ async def home(request: Request, password: str = ""):
         }
     )
 
+
 # ADD ALERT
 @app.post("/add")
 async def add_alert(
     request: Request,
     password: str = Form(...),
     coin: str = Form(...),
-    price: float = Form(...)
+    price: float = Form(...),
+    direction: str = Form("down")
 ):
 
     if password != PASSWORD:
@@ -86,7 +88,10 @@ async def add_alert(
     if coin not in SUPPORTED_COINS:
         return {"error": "unsupported coin"}
 
-    alerts.append({"coin": coin, "price": price})
+    if direction not in ("down", "up"):
+        direction = "down"
+
+    alerts.append({"coin": coin, "price": price, "direction": direction})
 
     return HTMLResponse(f"""
 
@@ -126,6 +131,7 @@ async def price_loop():
 
         try:
 
+
             symbols = list(MEXC_SYMBOLS.values())
             response = requests.get(
                 "https://api.mexc.com/api/v3/ticker/price",
@@ -134,7 +140,6 @@ async def price_loop():
             )
 
             data = response.json()
-
             prices = {entry["symbol"]: float(entry["price"]) for entry in data}
 
             print("Prices:", {coin: prices.get(MEXC_SYMBOLS[coin]) for coin in SUPPORTED_COINS})
@@ -146,21 +151,28 @@ async def price_loop():
                 symbol = MEXC_SYMBOLS.get(coin)
                 current = prices.get(symbol)
                 alert_price = alert["price"]
+                direction = alert.get("direction", "down")
 
                 prev = previous_prices.get(coin)
-                # Only trigger if price crosses the alert value (up or down)
                 crossed = False
                 if prev is not None and current is not None:
-                    if (prev < alert_price <= current) or (prev > alert_price >= current):
-                        crossed = True
-                # If no previous price, don't trigger yet
+                    if direction == "down":
+                        # If previous price was above alert and now is <= alert, trigger
+                        if prev > alert_price and current <= alert_price:
+                            crossed = True
+                    elif direction == "up":
+                        # If previous price was below alert and now is >= alert, trigger
+                        if prev < alert_price and current >= alert_price:
+                            crossed = True
 
                 if crossed:
+                    if direction == "down":
+                        msg = f"<@346060319770148864> {coin} hit ${alert_price:,} (now ${current:,})"
+                    else:
+                        msg = f"<@346060319770148864> {coin} hit ${alert_price:,} (now ${current:,})"
                     requests.post(
                         WEBHOOK,
-                        json={
-                            "content": f"<@346060319770148864> {coin} crossed ${alert_price:,} (now ${current:,})"
-                        }
+                        json={"content": msg}
                     )
                     triggered.append(alert)
 

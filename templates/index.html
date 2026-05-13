@@ -80,6 +80,10 @@
             required
         >
 
+        <select name="direction">
+            <option value="down">Drops to or below</option>
+            <option value="up">Raises to or above</option>
+        </select>
         <button type="submit">Add Alert</button>
 
     </form>
@@ -92,7 +96,11 @@
             <li>
                 <span>
                     <span class="coin-badge">{{ alert.coin }}</span>
-                    hits ${{ alert.price }}
+                    {% if alert.direction == 'down' %}
+                        drops to or below ${{ alert.price }}
+                    {% else %}
+                        raises to or above ${{ alert.price }}
+                    {% endif %}
                 </span>
                 <form action="/remove" method="post" style="margin:0;">
                     <input type="hidden" name="password" value="{{ password }}">
