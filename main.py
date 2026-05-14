@@ -17,6 +17,7 @@ previous_prices = {}
 
 WEBHOOK = os.getenv("DISCORD_WEBHOOK")
 PASSWORD = os.getenv("DASH_PASSWORD")
+UUID = os.getenv("SECRET_UUID")
 
 SUPPORTED_COINS = ["ETH", "LINK", "SOL", "XRP", "XMR", "DOGE"]
 
@@ -167,9 +168,9 @@ async def price_loop():
 
                 if crossed:
                     if direction == "down":
-                        msg = f"<@346060319770148864> {coin} hit ${alert_price:,} (now ${current:,})"
+                        msg = f"<@{UUID}> {coin} hit ${alert_price:,} (now ${current:,})"
                     else:
-                        msg = f"<@346060319770148864> {coin} hit ${alert_price:,} (now ${current:,})"
+                        msg = f"<@{UUID}> {coin} hit ${alert_price:,} (now ${current:,})"
                     requests.post(
                         WEBHOOK,
                         json={"content": msg}
