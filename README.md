@@ -17,15 +17,35 @@ The project includes a password-protected dashboard for managing alerts and supp
 * FastAPI backend with HTML dashboard
 * Replit deployment support
 * Automatic alert removal after trigger
+## Overview
 
-## Supported Assets
+A real-time cryptocurrency price alert system built with FastAPI and deployed on Replit. The application monitors live market prices and sends Discord webhook notifications when configured price thresholds are reached.
 
-* Bitcoin (BTC)
-* Ethereum (ETH)
-* Chainlink (LINK)
-* Solana (SOL)
-* XRP (XRP)
-* Monero (XMR)
+The project includes a password-protected dashboard for managing alerts and supports multiple cryptocurrencies through exchange market data APIs.
+
+## Features
+
+* Real-time cryptocurrency price monitoring
+* Discord webhook notifications
+* Password-protected dashboard
+* Add and remove alerts dynamically
+* Support for multiple cryptocurrencies
+* Lightweight in-memory alert management
+* FastAPI backend with HTML dashboard
+* Replit deployment support
+* Automatic alert removal after trigger
+
+
+## Customizing Supported Coins
+
+You can customize the list of supported coins by editing the following line in `main.py` (default is line 22):
+
+```
+SUPPORTED_COINS = ["ETH", "LINK", "SOL", "XRP", "XMR", "DOGE"]
+```
+
+Add or remove coin symbols as needed. The dashboard and alert system will reflect your changes.
+
 
 ## Tech Stack
 
@@ -37,6 +57,7 @@ The project includes a password-protected dashboard for managing alerts and supp
 * Requests / HTTP APIs
 * Discord Webhooks
 * Replit Hosting
+
 
 ## System Architecture
 
@@ -88,19 +109,25 @@ When a target price is reached:
 
 ## Environment Variables
 
+Set the following environment variables when deploying:
+
 ```env
 DISCORD_WEBHOOK=your_discord_webhook
 DASH_PASSWORD=your_dashboard_password
+SECRET_UUID=your_discord_user_id
 ```
+
 
 ## Deployment
 
-Designed for deployment on Replit using Uvicorn.
+Designed for deployment on Replit or any environment using Uvicorn.
 
-### Run Command
+### Start Command
+
+To start the server, use:
 
 ```bash
-uvicorn main:app --host 0.0.0.0 --port 3000
+uvicorn main:app --host 0.0.0.0 --port $PORT
 ```
 
 ## Project Summary
