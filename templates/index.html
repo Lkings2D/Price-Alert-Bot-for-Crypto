@@ -59,60 +59,107 @@
 
 <body>
 
-    <h1>Crypto Alert Dashboard</h1>
-    <p class="subtitle">Get a Discord notification when a coin hits your target price.</p>
+    <div style="display: flex; gap: 12px; margin-bottom: 24px;">
+        <button id="tab-crypto" onclick="showTab('crypto')" style="flex:1; font-weight:bold;">Crypto</button>
+        <button id="tab-stocks" onclick="showTab('stocks')" style="flex:1; font-weight:bold;">Stocks</button>
+    </div>
 
-    <form class="add-form" action="/add" method="post">
+    <div id="crypto-section">
+        <h1>Crypto Alert Dashboard</h1>
+        <p class="subtitle">Get a Discord notification when a coin hits your target price.</p>
+        <form class="add-form" action="/add" method="post">
+            <input type="hidden" name="password" value="{{ password }}">
+            <select name="coin">
+                {% for c in coins %}
+                    <option value="{{ c }}">{{ c }}/USDT</option>
+                {% endfor %}
+            </select>
+            <input type="number" step="any" name="price" placeholder="Target price (USD)" required>
+            <select name="direction">
+                <option value="down">Drops to or below</option>
+                <option value="up">Raises to or above</option>
+            </select>
+            <button type="submit">Add Alert</button>
+        </form>
+        <h2>Active Alerts</h2>
+        {% if alerts %}
+            <ul>
+                {% for alert in alerts %}
+                <li>
+                    <span>
+                        <span class="coin-badge">{{ alert.coin }}</span>
+                        {% if alert.direction == 'down' %}
+                            drops to or below ${{ alert.price }}
+                        {% else %}
+                            raises to or above ${{ alert.price }}
+                        {% endif %}
+                    </span>
+                    <form action="/remove" method="post" style="margin:0;">
+                        <input type="hidden" name="password" value="{{ password }}">
+                        <input type="hidden" name="index" value="{{ loop.index0 }}">
+                        <button class="remove-btn" type="submit">Remove</button>
+                    </form>
+                </li>
+                {% endfor %}
+            </ul>
+        {% else %}
+            <p class="empty">No alerts set yet.</p>
+        {% endif %}
+    </div>
 
-        <input type="hidden" name="password" value="{{ password }}">
+    <div id="stocks-section" style="display:none;">
+        <h1>Stock Alert Dashboard</h1>
+        <p class="subtitle">Get a Discord notification when a stock hits your target price.</p>
+        <form class="add-form" action="/add" method="post">
+            <input type="hidden" name="password" value="{{ password }}">
+            <select name="stock">
+                {% for s in stocks %}
+                    <option value="{{ s }}">{{ s }}</option>
+                {% endfor %}
+            </select>
+            <input type="number" step="any" name="price" placeholder="Target price (USD)" required>
+            <select name="direction">
+                <option value="down">Drops to or below</option>
+                <option value="up">Raises to or above</option>
+            </select>
+            <button type="submit">Add Alert</button>
+        </form>
+        <h2>Active Alerts</h2>
+        {% if alerts %}
+            <ul>
+                {% for alert in alerts %}
+                <li>
+                    <span>
+                        <span class="coin-badge">{{ alert.stock if alert.stock else alert.coin }}</span>
+                        {% if alert.direction == 'down' %}
+                            drops to or below ${{ alert.price }}
+                        {% else %}
+                            raises to or above ${{ alert.price }}
+                        {% endif %}
+                    </span>
+                    <form action="/remove" method="post" style="margin:0;">
+                        <input type="hidden" name="password" value="{{ password }}">
+                        <input type="hidden" name="index" value="{{ loop.index0 }}">
+                        <button class="remove-btn" type="submit">Remove</button>
+                    </form>
+                </li>
+                {% endfor %}
+            </ul>
+        {% else %}
+            <p class="empty">No alerts set yet.</p>
+        {% endif %}
+    </div>
 
-        <select name="coin">
-            {% for c in coins %}
-                <option value="{{ c }}">{{ c }}/USDT</option>
-            {% endfor %}
-        </select>
-
-        <input
-            type="number"
-            step="any"
-            name="price"
-            placeholder="Target price (USD)"
-            required
-        >
-
-        <select name="direction">
-            <option value="down">Drops to or below</option>
-            <option value="up">Raises to or above</option>
-        </select>
-        <button type="submit">Add Alert</button>
-
-    </form>
-
-    <h2>Active Alerts</h2>
-
-    {% if alerts %}
-        <ul>
-            {% for alert in alerts %}
-            <li>
-                <span>
-                    <span class="coin-badge">{{ alert.coin }}</span>
-                    {% if alert.direction == 'down' %}
-                        drops to or below ${{ alert.price }}
-                    {% else %}
-                        raises to or above ${{ alert.price }}
-                    {% endif %}
-                </span>
-                <form action="/remove" method="post" style="margin:0;">
-                    <input type="hidden" name="password" value="{{ password }}">
-                    <input type="hidden" name="index" value="{{ loop.index0 }}">
-                    <button class="remove-btn" type="submit">Remove</button>
-                </form>
-            </li>
-            {% endfor %}
-        </ul>
-    {% else %}
-        <p class="empty">No alerts set yet.</p>
-    {% endif %}
+    <script>
+        function showTab(tab) {
+            document.getElementById('crypto-section').style.display = tab === 'crypto' ? '' : 'none';
+            document.getElementById('stocks-section').style.display = tab === 'stocks' ? '' : 'none';
+            document.getElementById('tab-crypto').style.background = tab === 'crypto' ? '#dbeafe' : '';
+            document.getElementById('tab-stocks').style.background = tab === 'stocks' ? '#dbeafe' : '';
+        }
+        // Default to crypto tab
+        showTab('crypto');
+    </script>
 
 </body>
 

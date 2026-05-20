@@ -132,4 +132,35 @@ uvicorn main:app --host 0.0.0.0 --port $PORT
 
 ## Project Summary
 
+
 Built a real-time cryptocurrency alert tracking platform using FastAPI, asynchronous Python workflows, and Discord webhooks. Implemented a password-protected dashboard for dynamic alert management and integrated live market monitoring through exchange APIs. Designed the application for lightweight deployment with persistent uptime support.
+
+---
+
+## Quick Start Tutorial
+
+### Crypto Alerts
+1. Edit `main.py` to set your supported coins:
+	```python
+	SUPPORTED_COINS = ["ETH", "LINK", "SOL", "XRP", "XMR", "DOGE"]
+	```
+2. Start the crypto alert server:
+	```bash
+	uvicorn main:app --host 0.0.0.0 --port 8080
+	```
+3. Open your browser to `http://localhost:8080` and log in with your password.
+4. Add, view, and remove crypto price alerts from the dashboard.
+
+### Stock Alerts (for secondary.py)
+1. Edit `secondary.py` to set your supported stock tickers:
+	```python
+	SUPPORTED_STOCKS = ["AAPL", "GOOGL", "MSFT"]
+	```
+2. Start the stock alert server:
+	```bash
+	uvicorn secondary:app --host 0.0.0.0 --port 8080
+	```
+3. Open your browser to `http://localhost:8080` and switch to the "Stocks" tab.
+4. Add, view, and remove stock price alerts from the dashboard.
+
+Both dashboards use the same password and Discord webhook for notifications.
