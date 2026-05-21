@@ -35,8 +35,23 @@ SUPPORTED_STOCKS = ["RKLB", "INTU", "NBIS"]
 
 YAHOO_CHART_URL = "https://query1.finance.yahoo.com/v8/finance/chart/{symbol}"
 EASTERN = ZoneInfo("America/New_York")
-MARKET_OPEN = time(10, 30)
-MARKET_CLOSE = time(17, 0)
+
+
+def _parse_market_time(env_name: str, default_value: time) -> time:
+    raw_value = os.getenv(env_name, "").strip()
+    if not raw_value:
+        return default_value
+
+    try:
+        hours, minutes = raw_value.split(":", 1)
+        return time(int(hours), int(minutes))
+    except Exception:
+        print(f"Invalid {env_name} value {raw_value!r}; using {default_value.strftime('%H:%M')}")
+        return default_value
+
+
+MARKET_OPEN = _parse_market_time("MARKET_OPEN_ET", time(9, 30))
+MARKET_CLOSE = _parse_market_time("MARKET_CLOSE_ET", time(16, 0))
 
 
 def market_is_open(now: Optional[datetime] = None) -> bool:
