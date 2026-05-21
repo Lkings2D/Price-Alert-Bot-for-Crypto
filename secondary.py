@@ -11,6 +11,18 @@ from typing import Optional
 
 app = FastAPI()
 
+# Holiday handling: prefer the `holidays` package for accurate US market holidays.
+try:
+    import holidays as _holidays  # type: ignore
+    _HOLIDAYS_LIB = True
+    _US_HOLIDAYS = _holidays.UnitedStates()
+except Exception:
+    _HOLIDAYS_LIB = False
+    _US_HOLIDAYS = None
+
+# Allow skipping holiday checks via env for testing
+SKIP_HOLIDAYS = os.getenv("SKIP_HOLIDAYS", "").lower() in ("1", "true", "yes")
+
 templates = Jinja2Templates(directory="templates")
 
 stock_alerts = []
@@ -30,6 +42,10 @@ MARKET_CLOSE = time(17, 0)
 def market_is_open(now: Optional[datetime] = None) -> bool:
     current_time = now or datetime.now(EASTERN)
     current_time = current_time.astimezone(EASTERN)
+    # Closed on US market holidays (if the `holidays` package is available)
+    if not SKIP_HOLIDAYS and _HOLIDAYS_LIB and _US_HOLIDAYS is not None:
+        if current_time.date() in _US_HOLIDAYS:
+            return False
     return MARKET_OPEN <= current_time.time() < MARKET_CLOSE
 
 
@@ -46,11 +62,18 @@ def seconds_until_market_open(now: Optional[datetime] = None) -> float:
         )
 
     today_open = build_open(current_time)
-    if current_time < today_open and current_time.weekday() < 5:
+    # If today is a business day and before today's open, and today is not a holiday,
+    # return seconds until today's open.
+    is_today_holiday = False
+    if not SKIP_HOLIDAYS and _HOLIDAYS_LIB and _US_HOLIDAYS is not None:
+        is_today_holiday = current_time.date() in _US_HOLIDAYS
+
+    if current_time < today_open and current_time.weekday() < 5 and not is_today_holiday:
         return (today_open - current_time).total_seconds()
 
+    # Otherwise find the next weekday that is not a holiday
     next_day = current_time + timedelta(days=1)
-    while next_day.weekday() >= 5:
+    while next_day.weekday() >= 5 or (not SKIP_HOLIDAYS and _HOLIDAYS_LIB and _US_HOLIDAYS is not None and next_day.date() in _US_HOLIDAYS):
         next_day += timedelta(days=1)
     next_open = build_open(next_day)
     return (next_open - current_time).total_seconds()
