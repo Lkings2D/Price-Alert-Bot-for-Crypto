@@ -67,7 +67,8 @@ async def home(request: Request, password: str = ""):
         {
             "alerts": alerts,
             "password": password,
-            "coins": SUPPORTED_COINS
+            "coins": SUPPORTED_COINS,
+            "mode": "crypto"
         }
     )
 

@@ -117,6 +117,8 @@ DASH_PASSWORD=your_dashboard_password
 SECRET_UUID=your_discord_user_id
 ```
 
+`secondary.py` uses Yahoo chart data for stock and ETF quotes.
+
 
 ## Deployment
 

@@ -4,4 +4,3 @@ websockets
 requests
 jinja2
 python-multipart
-yfinance

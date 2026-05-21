@@ -1,20 +1,19 @@
-# secondary.py
-# Temporary script to fetch and display popular stock prices using yfinance
-
 from fastapi import FastAPI, Form, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
 import asyncio
-import yfinance as yf
+from datetime import datetime, time, timedelta
+import requests
 import os
+from zoneinfo import ZoneInfo
+from typing import Optional
 
 app = FastAPI()
 
 templates = Jinja2Templates(directory="templates")
 
 alerts = []
-previous_prices = {}
 
 WEBHOOK = os.getenv("DISCORD_WEBHOOK")
 PASSWORD = os.getenv("DASH_PASSWORD")
@@ -22,6 +21,75 @@ UUID = os.getenv("SECRET_UUID")
 
 # If you know the correct ticker (e.g., for a European exchange), replace below. Otherwise, use popular stocks as examples:
 SUPPORTED_STOCKS = ["RKLB","INTU","NBIS"]
+
+YAHOO_CHART_URL = "https://query1.finance.yahoo.com/v8/finance/chart/{symbol}"
+EASTERN = ZoneInfo("America/New_York")
+MARKET_OPEN = time(10, 30)
+MARKET_CLOSE = time(17, 0)
+
+
+def market_is_open(now: Optional[datetime] = None) -> bool:
+    current_time = now or datetime.now(EASTERN)
+    current_time = current_time.astimezone(EASTERN)
+    return MARKET_OPEN <= current_time.time() < MARKET_CLOSE
+
+
+def seconds_until_market_open(now: Optional[datetime] = None) -> float:
+    current_time = now or datetime.now(EASTERN)
+    current_time = current_time.astimezone(EASTERN)
+
+    def build_open(day: datetime) -> datetime:
+        return day.replace(
+            hour=MARKET_OPEN.hour,
+            minute=MARKET_OPEN.minute,
+            second=0,
+            microsecond=0,
+        )
+
+    today_open = build_open(current_time)
+    if current_time < today_open and current_time.weekday() < 5:
+        return (today_open - current_time).total_seconds()
+
+    next_day = current_time + timedelta(days=1)
+    while next_day.weekday() >= 5:
+        next_day += timedelta(days=1)
+    next_open = build_open(next_day)
+    return (next_open - current_time).total_seconds()
+
+
+def get_live_stock_price(stock: str):
+    response = requests.get(
+        YAHOO_CHART_URL.format(symbol=stock),
+        params={"range": "1d", "interval": "1m", "includePrePost": "true"},
+        timeout=10,
+        headers={"User-Agent": "Mozilla/5.0"},
+    )
+
+    if response.status_code != 200:
+        print(f"Yahoo chart request failed for {stock}: {response.status_code}")
+        return None
+
+    payload = response.json()
+    chart = payload.get("chart", {})
+    result = chart.get("result", [])
+    if not result:
+        return None
+
+    meta = result[0].get("meta", {})
+    for field in ("postMarketPrice", "preMarketPrice", "regularMarketPrice", "currentPrice"):
+        value = meta.get(field)
+        if value is not None:
+            return float(value)
+
+    indicators = result[0].get("indicators", {}).get("quote", [])
+    timestamps = result[0].get("timestamp", [])
+    if indicators and timestamps:
+        closes = indicators[0].get("close", [])
+        for close_price in reversed(closes):
+            if close_price is not None:
+                return float(close_price)
+
+    return None
 
 @app.api_route("/health", methods=["GET", "HEAD"])
 async def health():
@@ -53,13 +121,13 @@ async def home(request: Request, password: str = ""):
         {
             "alerts": alerts,
             "password": password,
-            "stocks": SUPPORTED_STOCKS
+            "stocks": SUPPORTED_STOCKS,
+            "mode": "stocks"
         }
     )
 
 @app.post("/add")
 async def add_alert(
-    request: Request,
     password: str = Form(...),
     stock: str = Form(...),
     price: float = Form(...),
@@ -81,7 +149,6 @@ async def add_alert(
 
 @app.post("/remove")
 async def remove_alert(
-    request: Request,
     password: str = Form(...),
     index: int = Form(...)
 ):
@@ -98,45 +165,50 @@ async def remove_alert(
 async def price_loop():
     while True:
         try:
+            if not market_is_open():
+                now = datetime.now(EASTERN)
+                sleep_for = seconds_until_market_open(now)
+                print(
+                    f"Market closed in Eastern time ({now:%Y-%m-%d %H:%M:%S %Z}); "
+                    f"sleeping for {sleep_for:.0f} seconds"
+                )
+                await asyncio.sleep(sleep_for)
+                continue
+
             prices = {}
             for stock in SUPPORTED_STOCKS:
-                ticker = yf.Ticker(stock)
-                # Fetch 1-minute interval data for today
-                data = ticker.history(period="1d", interval="1m")
-                if not data.empty:
-                    # Use the most recent close price
-                    prices[stock] = float(data['Close'].iloc[-1])
+                price = get_live_stock_price(stock)
+                if price is not None:
+                    prices[stock] = price
                 else:
-                    print(f"No intraday data found for {stock}")
+                    print(f"No live quote found for {stock}")
             print("Prices:", prices)
             triggered = []
             for alert in alerts:
-                stock = alert["stock"]
+                stock = alert.get("stock")
+                if not stock:
+                    continue
                 current = prices.get(stock)
                 alert_price = alert["price"]
                 direction = alert.get("direction", "down")
-                prev = previous_prices.get(stock)
                 crossed = False
-                if prev is not None and current is not None:
+                if current is not None:
                     if direction == "down":
-                        if prev > alert_price and current <= alert_price:
-                            crossed = True
+                        crossed = current <= alert_price
                     elif direction == "up":
-                        if prev < alert_price and current >= alert_price:
-                            crossed = True
+                        crossed = current >= alert_price
                 if crossed:
                     msg = f"<@{UUID}> {stock} hit ${alert_price:,} (now ${current:,})"
                     if WEBHOOK:
-                        import requests
-                        requests.post(
-                            WEBHOOK,
-                            json={"content": msg}
-                        )
+                        try:
+                            requests.post(
+                                WEBHOOK,
+                                json={"content": msg},
+                                timeout=10,
+                            )
+                        except Exception as webhook_error:
+                            print(f"Discord webhook error: {webhook_error}")
                     triggered.append(alert)
-            for stock in SUPPORTED_STOCKS:
-                price = prices.get(stock)
-                if price is not None:
-                    previous_prices[stock] = price
             for t in triggered:
                 if t in alerts:
                     alerts.remove(t)

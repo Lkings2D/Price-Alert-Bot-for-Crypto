@@ -58,13 +58,17 @@
 </head>
 
 <body>
+    {% set dashboard_mode = mode|default('both') %}
 
+    {% if dashboard_mode == 'both' %}
     <div style="display: flex; gap: 12px; margin-bottom: 24px;">
         <button id="tab-crypto" onclick="showTab('crypto')" style="flex:1; font-weight:bold;">Crypto</button>
         <button id="tab-stocks" onclick="showTab('stocks')" style="flex:1; font-weight:bold;">Stocks</button>
     </div>
+    {% endif %}
 
-    <div id="crypto-section">
+    {% if dashboard_mode != 'stocks' %}
+    <div id="crypto-section"{% if dashboard_mode != 'crypto' %} style="display:none;"{% endif %}>
         <h1>Crypto Alert Dashboard</h1>
         <p class="subtitle">Get a Discord notification when a coin hits your target price.</p>
         <form class="add-form" action="/add" method="post">
@@ -106,8 +110,10 @@
             <p class="empty">No alerts set yet.</p>
         {% endif %}
     </div>
+    {% endif %}
 
-    <div id="stocks-section" style="display:none;">
+    {% if dashboard_mode != 'crypto' %}
+    <div id="stocks-section"{% if dashboard_mode != 'stocks' %} style="display:none;"{% endif %}>
         <h1>Stock Alert Dashboard</h1>
         <p class="subtitle">Get a Discord notification when a stock hits your target price.</p>
         <form class="add-form" action="/add" method="post">
@@ -130,7 +136,7 @@
                 {% for alert in alerts %}
                 <li>
                     <span>
-                        <span class="coin-badge">{{ alert.stock if alert.stock else alert.coin }}</span>
+                        <span class="coin-badge">{{ alert.stock }}</span>
                         {% if alert.direction == 'down' %}
                             drops to or below ${{ alert.price }}
                         {% else %}
@@ -149,7 +155,9 @@
             <p class="empty">No alerts set yet.</p>
         {% endif %}
     </div>
+    {% endif %}
 
+    {% if dashboard_mode == 'both' %}
     <script>
         function showTab(tab) {
             document.getElementById('crypto-section').style.display = tab === 'crypto' ? '' : 'none';
@@ -160,6 +168,7 @@
         // Default to crypto tab
         showTab('crypto');
     </script>
+    {% endif %}
 
 </body>
 
