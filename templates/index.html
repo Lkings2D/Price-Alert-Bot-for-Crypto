@@ -73,6 +73,7 @@
         <p class="subtitle">Get a Discord notification when a coin hits your target price.</p>
         <form class="add-form" action="/add" method="post">
             <input type="hidden" name="password" value="{{ password }}">
+            <input type="hidden" name="kind" value="crypto">
             <select name="coin">
                 {% for c in coins %}
                     <option value="{{ c }}">{{ c }}/USDT</option>
@@ -86,9 +87,9 @@
             <button type="submit">Add Alert</button>
         </form>
         <h2>Active Alerts</h2>
-        {% if alerts %}
+        {% if crypto_alerts %}
             <ul>
-                {% for alert in alerts %}
+                {% for alert in crypto_alerts %}
                 <li>
                     <span>
                         <span class="coin-badge">{{ alert.coin }}</span>
@@ -100,6 +101,7 @@
                     </span>
                     <form action="/remove" method="post" style="margin:0;">
                         <input type="hidden" name="password" value="{{ password }}">
+                        <input type="hidden" name="kind" value="crypto">
                         <input type="hidden" name="index" value="{{ loop.index0 }}">
                         <button class="remove-btn" type="submit">Remove</button>
                     </form>
@@ -118,6 +120,7 @@
         <p class="subtitle">Get a Discord notification when a stock hits your target price.</p>
         <form class="add-form" action="/add" method="post">
             <input type="hidden" name="password" value="{{ password }}">
+            <input type="hidden" name="kind" value="stocks">
             <select name="stock">
                 {% for s in stocks %}
                     <option value="{{ s }}">{{ s }}</option>
@@ -131,9 +134,9 @@
             <button type="submit">Add Alert</button>
         </form>
         <h2>Active Alerts</h2>
-        {% if alerts %}
+        {% if stock_alerts %}
             <ul>
-                {% for alert in alerts %}
+                {% for alert in stock_alerts %}
                 <li>
                     <span>
                         <span class="coin-badge">{{ alert.stock }}</span>
@@ -145,6 +148,7 @@
                     </span>
                     <form action="/remove" method="post" style="margin:0;">
                         <input type="hidden" name="password" value="{{ password }}">
+                        <input type="hidden" name="kind" value="stocks">
                         <input type="hidden" name="index" value="{{ loop.index0 }}">
                         <button class="remove-btn" type="submit">Remove</button>
                     </form>

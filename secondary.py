@@ -13,14 +13,13 @@ app = FastAPI()
 
 templates = Jinja2Templates(directory="templates")
 
-alerts = []
+stock_alerts = []
 
 WEBHOOK = os.getenv("DISCORD_WEBHOOK")
 PASSWORD = os.getenv("DASH_PASSWORD")
 UUID = os.getenv("SECRET_UUID")
 
-# If you know the correct ticker (e.g., for a European exchange), replace below. Otherwise, use popular stocks as examples:
-SUPPORTED_STOCKS = ["RKLB","INTU","NBIS"]
+SUPPORTED_STOCKS = ["RKLB", "INTU", "NBIS"]
 
 YAHOO_CHART_URL = "https://query1.finance.yahoo.com/v8/finance/chart/{symbol}"
 EASTERN = ZoneInfo("America/New_York")
@@ -119,7 +118,7 @@ async def home(request: Request, password: str = ""):
         request,
         "index.html",
         {
-            "alerts": alerts,
+            "stock_alerts": stock_alerts,
             "password": password,
             "stocks": SUPPORTED_STOCKS,
             "mode": "stocks"
@@ -135,12 +134,16 @@ async def add_alert(
 ):
     if password != PASSWORD:
         return {"error": "wrong password"}
+
     stock = stock.upper()
     if stock not in SUPPORTED_STOCKS:
         return {"error": "unsupported stock"}
+
     if direction not in ("down", "up"):
         direction = "down"
-    alerts.append({"stock": stock, "price": price, "direction": direction})
+
+    stock_alerts.append({"stock": stock, "price": price, "direction": direction})
+
     return HTMLResponse(f"""
     <script>
         window.location.href='/?password={password}'
@@ -154,13 +157,16 @@ async def remove_alert(
 ):
     if password != PASSWORD:
         return {"error": "wrong password"}
-    if 0 <= index < len(alerts):
-        alerts.pop(index)
+
+    if 0 <= index < len(stock_alerts):
+        stock_alerts.pop(index)
+
     return HTMLResponse(f"""
     <script>
         window.location.href='/?password={password}'
     </script>
     """)
+
 
 async def price_loop():
     while True:
@@ -183,8 +189,9 @@ async def price_loop():
                 else:
                     print(f"No live quote found for {stock}")
             print("Prices:", prices)
+
             triggered = []
-            for alert in alerts:
+            for alert in stock_alerts:
                 stock = alert.get("stock")
                 if not stock:
                     continue
@@ -209,13 +216,16 @@ async def price_loop():
                         except Exception as webhook_error:
                             print(f"Discord webhook error: {webhook_error}")
                     triggered.append(alert)
+
             for t in triggered:
-                if t in alerts:
-                    alerts.remove(t)
+                if t in stock_alerts:
+                    stock_alerts.remove(t)
+
         except Exception as e:
             import traceback
             print(f"Price fetch error: {e}")
             traceback.print_exc()
+
         await asyncio.sleep(10)
 
 @app.on_event("startup")
