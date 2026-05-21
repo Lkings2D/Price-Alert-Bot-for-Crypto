@@ -21,7 +21,7 @@ PASSWORD = os.getenv("DASH_PASSWORD")
 UUID = os.getenv("SECRET_UUID")
 
 # If you know the correct ticker (e.g., for a European exchange), replace below. Otherwise, use popular stocks as examples:
-SUPPORTED_STOCKS = ["INTU"]
+SUPPORTED_STOCKS = ["RKLB","INTU","NBIS"]
 
 @app.api_route("/health", methods=["GET", "HEAD"])
 async def health():
