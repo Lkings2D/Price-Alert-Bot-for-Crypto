@@ -31,7 +31,8 @@ WEBHOOK = os.getenv("DISCORD_WEBHOOK")
 PASSWORD = os.getenv("DASH_PASSWORD")
 UUID = os.getenv("SECRET_UUID")
 
-SUPPORTED_STOCKS = ["RKLB", "INTU", "NBIS"]
+# Supported stocks for alerts <------------------------------------------------
+SUPPORTED_STOCKS = ["NVDA", "SPOT"]
 
 YAHOO_CHART_URL = "https://query1.finance.yahoo.com/v8/finance/chart/{symbol}"
 EASTERN = ZoneInfo("America/New_York")
