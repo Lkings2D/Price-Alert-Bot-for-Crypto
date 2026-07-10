@@ -32,7 +32,7 @@ PASSWORD = os.getenv("DASH_PASSWORD")
 UUID = os.getenv("SECRET_UUID")
 
 # Supported stocks for alerts <------------------------------------------------
-SUPPORTED_STOCKS = ["META"]
+SUPPORTED_STOCKS = ["META","VRT","LITE",]
 
 YAHOO_CHART_URL = "https://query1.finance.yahoo.com/v8/finance/chart/{symbol}"
 EASTERN = ZoneInfo("America/New_York")
