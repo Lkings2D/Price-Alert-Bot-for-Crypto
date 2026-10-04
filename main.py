@@ -21,7 +21,8 @@ UUID = os.getenv("SECRET_UUID")
 
 SUPPORTED_COINS = ["BTC", "ETH", "LINK", "SOL", "XRP", "XMR", "DOGE","NBIS", "XAG"]
 
-MEXC_SYMBOLS = {coin: f"{coin}USDT" for coin in SUPPORTED_COINS}
+MEXC_SYMBOLS = {coin: f"{coin}USDT" for coin in SUPPORTED_COINS if coin != "XAG"}
+MEXC_FUTURES_SYMBOLS = {"XAG": "SILVER_USDT"}
 
 @app.api_route("/health", methods=["GET", "HEAD"])
 async def health():
@@ -140,17 +141,32 @@ async def price_loop():
                 params={"symbols": str(symbols).replace("'", '"').replace(" ", "")},
                 timeout=10
             )
+            response.raise_for_status()
 
             data = response.json()
             prices = {entry["symbol"]: float(entry["price"]) for entry in data}
 
-            print("Prices:", {coin: prices.get(MEXC_SYMBOLS[coin]) for coin in SUPPORTED_COINS})
+            for coin, symbol in MEXC_FUTURES_SYMBOLS.items():
+                response = requests.get(
+                    "https://contract.mexc.com/api/v1/contract/ticker",
+                    params={"symbol": symbol},
+                    timeout=10
+                )
+                response.raise_for_status()
+                ticker = response.json()
+                if ticker.get("success") and ticker.get("data", {}).get("lastPrice") is not None:
+                    prices[symbol] = float(ticker["data"]["lastPrice"])
+
+            print("Prices:", {
+                coin: prices.get(MEXC_SYMBOLS.get(coin, MEXC_FUTURES_SYMBOLS.get(coin)))
+                for coin in SUPPORTED_COINS
+            })
 
             triggered = []
 
             for alert in alerts:
                 coin = alert["coin"]
-                symbol = MEXC_SYMBOLS.get(coin)
+                symbol = MEXC_SYMBOLS.get(coin, MEXC_FUTURES_SYMBOLS.get(coin))
                 current = prices.get(symbol)
                 alert_price = alert["price"]
                 direction = alert.get("direction", "down")
@@ -180,7 +196,7 @@ async def price_loop():
 
             # Update previous prices for all coins
             for coin in SUPPORTED_COINS:
-                symbol = MEXC_SYMBOLS.get(coin)
+                symbol = MEXC_SYMBOLS.get(coin, MEXC_FUTURES_SYMBOLS.get(coin))
                 price = prices.get(symbol)
                 if price is not None:
                     previous_prices[coin] = price
