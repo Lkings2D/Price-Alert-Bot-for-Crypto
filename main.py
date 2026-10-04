@@ -19,7 +19,7 @@ WEBHOOK = os.getenv("DISCORD_WEBHOOK")
 PASSWORD = os.getenv("DASH_PASSWORD")
 UUID = os.getenv("SECRET_UUID")
 
-SUPPORTED_COINS = ["BTC", "ETH", "LINK", "SOL", "XRP", "XMR", "DOGE","NBIS"]
+SUPPORTED_COINS = ["BTC", "ETH", "LINK", "SOL", "XRP", "XMR", "DOGE","NBIS", "XAG"]
 
 MEXC_SYMBOLS = {coin: f"{coin}USDT" for coin in SUPPORTED_COINS}
 
